@@ -1,9 +1,10 @@
 import psycopg2
 
-class InsertInfo: # Содержит информацию о названии таблицы и столбцов
+class Table: # Содержит информацию о названии таблицы и столбцов
     def __init__(self, table: str, rows: []):
         self.table = table
-        self.rows = rows
+        self.rows = {row: None for row in rows}
+        self.rows_no_id = {row: None for row in rows[1:]}
 
 class DBWorker: # Нужен для работы с базой данных
     def __init__(self, host: str, port: int, database: str, user: str, password: str):
@@ -23,32 +24,39 @@ class DBWorker: # Нужен для работы с базой данных
 
         self.cursor = self.connection.cursor()
     
-    def Select(self, rows: dict, table: str): # Выбрать все строки
+    def Select(self, table: Table, rows: dict): # Выбрать все строки
         self.cursor.execute(f'SELECT {', '.join(rows.keys())} FROM {table}')
         self.connection.commit()
         return self.cursor.fetchall()
     
-    def SelectBy(self, rows: dict, table: str, by: str, value: str): # Выбрать все строки у которых в столбце by значение value
+    def SelectBy(self, table: Table, rows: dict, by: str, value: str): # Выбрать все строки у которых в столбце by значение value
         self.cursor.execute(f'SELECT {', '.join(rows.keys())} FROM {table} WHERE \"{by}\"=%s;', (value,))
         self.connection.commit()
         return self.cursor.fetchall()
     
-    def Insert(self, insertInfo: InsertInfo, values: dict): # Вставить новую строку
-        self.cursor.execute(f'INSERT INTO {insertInfo.table} ({", ".join(insertInfo.rows)}) VALUES ({", ".join([", ".join("%s" for i in range(len(values.keys())))])});', [values[key] for key in values.keys()])
+    def SelectLastByOrderBy(self, table: Table, rows: dict, by: str, value: str, orderBy: str): # Выбрать последнюю запись, у которой в столбце by значение value, а отсортированы они были по столбцу orderBy
+        self.cursor.execute(f'SELECT {', '.join(rows)} FROM {table.table} WHERE \"{by}\"=%s ORDER BY {orderBy} DESC LIMIT 1;', (value,))
+        self.connection.commit()
+        return self.cursor.fetchone()
+    
+    def Insert(self, table: Table, values: dict): # Вставить новую строку
+        self.cursor.execute(f'INSERT INTO {table.table} ({", ".join(table.rows_no_id.keys())}) VALUES ({", ".join([", ".join("%s" for i in range(len(values.keys())))])});', [values[key] for key in values.keys()])
         self.connection.commit()
     
-    def InsertOnConflict(self, insertInfo: InsertInfo, values: dict, conflictRow: str): # Если такой записи нет, то добавить, а если есть, то обновить
-        self.cursor.execute(f'INSERT INTO {insertInfo.table} ({", ".join(insertInfo.rows)}) VALUES ({", ".join([", ".join("%s" for i in range(len(values.keys())))])}) ON CONFLICT (\"{conflictRow}\") DO UPDATE SET {", ".join([f"\"{row}\"=EXCLUDED.\"{row}\"" for row in insertInfo.rows])};', [values[key] for key in values.keys()])
+    def InsertOnConflict(self, table: Table, values: dict, conflictRow: str): # Если такой записи нет, то добавить, а если есть, то обновить
+        self.cursor.execute(f'INSERT INTO {table.table} ({", ".join(table.rows.keys())}) VALUES ({", ".join([", ".join("%s" for i in range(len(values.keys())))])}) ON CONFLICT (\"{conflictRow}\") DO UPDATE SET {", ".join([f"\"{row}\"=EXCLUDED.\"{row}\"" for row in table.rows])};', [values[key] for key in values.keys()])
         self.connection.commit()
 
 '''
 class User:
-    def __init__(self, id: int, telegram_id: int, firstname: str, lastname: str, is_answering: bool):
-        self.id = id
+    def __init__(self, telegram_id: int, first_name: str, last_name: str, is_answering: bool):
         self.telegram_id = telegram_id
-        self.firstname = firstname
-        self.lastname = lastname
+        self.first_name = first_name
+        self.last_name = last_name
         self.is_answering = is_answering
+    
+    def ToDict(self):
+        return {"telegram_id": self.telegram_id, "first_name": self.first_name, "last_name": self.last_name, "is_answering": self.is_answering}
 
 class Users:
     def __init__(self):
