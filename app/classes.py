@@ -25,14 +25,19 @@ class DBWorker: # Нужен для работы с базой данных
         self.cursor = self.connection.cursor()
     
     def Select(self, table: Table, rows: dict): # Выбрать все строки
-        self.cursor.execute(f'SELECT {', '.join(rows.keys())} FROM {table}')
+        self.cursor.execute(f'SELECT {', '.join(rows.keys())} FROM {table.table}')
         self.connection.commit()
         return self.cursor.fetchall()
     
     def SelectBy(self, table: Table, rows: dict, by: str, value: str): # Выбрать все строки у которых в столбце by значение value
-        self.cursor.execute(f'SELECT {', '.join(rows.keys())} FROM {table} WHERE \"{by}\"=%s;', (value,))
+        self.cursor.execute(f'SELECT {', '.join(rows.keys())} FROM {table.table} WHERE \"{by}\"=%s;', (value,))
         self.connection.commit()
         return self.cursor.fetchall()
+    
+    def SelectOneBy(self, table: Table, rows: dict, by: str, value: str): # Выбрать одну строку у которой в столбце by значение value
+        self.cursor.execute(f'SELECT {', '.join(rows.keys())} FROM {table.table} WHERE \"{by}\"=%s LIMIT 1;', (value,))
+        self.connection.commit()
+        return self.cursor.fetchone()
     
     def SelectLastByOrderBy(self, table: Table, rows: dict, by: str, value: str, orderBy: str): # Выбрать последнюю запись, у которой в столбце by значение value, а отсортированы они были по столбцу orderBy
         self.cursor.execute(f'SELECT {', '.join(rows)} FROM {table.table} WHERE \"{by}\"=%s ORDER BY {orderBy} DESC LIMIT 1;', (value,))
@@ -44,8 +49,30 @@ class DBWorker: # Нужен для работы с базой данных
         self.connection.commit()
     
     def InsertOnConflict(self, table: Table, values: dict, conflictRow: str): # Если такой записи нет, то добавить, а если есть, то обновить
-        self.cursor.execute(f'INSERT INTO {table.table} ({", ".join(table.rows.keys())}) VALUES ({", ".join([", ".join("%s" for i in range(len(values.keys())))])}) ON CONFLICT (\"{conflictRow}\") DO UPDATE SET {", ".join([f"\"{row}\"=EXCLUDED.\"{row}\"" for row in table.rows])};', [values[key] for key in values.keys()])
+        self.cursor.execute(f'INSERT INTO {table.table} ({", ".join(table.rows_no_id.keys())}) VALUES ({", ".join([", ".join("%s" for i in range(len(values.keys())))])}) ON CONFLICT (\"{conflictRow}\") DO UPDATE SET {", ".join([f"\"{row}\"=EXCLUDED.\"{row}\"" for row in table.rows_no_id])};', [values[key] for key in values.keys()])
         self.connection.commit()
+
+class OrderSender():
+    def __init__(self, dbWorker: DBWorker, table_UserOrderGroups: Table):
+        self.dbWorker = dbWorker
+        self.table_UserOrderGroups = table_UserOrderGroups
+    
+    def GetRecipients(self, telegram_id: int):
+        recipients = []
+
+        orderGroups = self.dbWorker.SelectBy(self.table_UserOrderGroups, {"order_groups": None}, "telegram_id", str(telegram_id))
+        for orderGroup in orderGroups:
+            print(orderGroup)
+            splittedOrderGroup = orderGroup[0].split('_')
+
+            if (splittedOrderGroup[1]=="sender"):
+                recipients += self.GetRecipientsByOrderGroup(f"{splittedOrderGroup[0]}_recipient")
+        
+        return set(recipients)
+    
+    def GetRecipientsByOrderGroup(self, orderGroup: str):
+        recipients = self.dbWorker.SelectBy(self.table_UserOrderGroups, {"telegram_id": None}, "order_groups", orderGroup)
+        return ([recipient[0] for recipient in recipients])
 
 '''
 class User:
