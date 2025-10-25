@@ -39,8 +39,8 @@ class DBWorker: # Нужен для работы с базой данных
         self.connection.commit()
         return self.cursor.fetchone()
     
-    def SelectLastByOrderBy(self, table: Table, rows: dict, by: str, value: str, orderBy: str): # Выбрать последнюю запись, у которой в столбце by значение value, а отсортированы они были по столбцу orderBy
-        self.cursor.execute(f'SELECT {', '.join(rows)} FROM {table.table} WHERE \"{by}\"=%s ORDER BY {orderBy} DESC LIMIT 1;', (value,))
+    def SelectLastByReportBy(self, table: Table, rows: dict, by: str, value: str, reportBy: str): # Выбрать последнюю запись, у которой в столбце by значение value, а отсортированы они были по столбцу reportBy
+        self.cursor.execute(f'SELECT {', '.join(rows)} FROM {table.table} WHERE \"{by}\"=%s ORDER BY {reportBy} DESC LIMIT 1;', (value,))
         self.connection.commit()
         return self.cursor.fetchone()
     
@@ -52,26 +52,26 @@ class DBWorker: # Нужен для работы с базой данных
         self.cursor.execute(f'INSERT INTO {table.table} ({", ".join(table.rows_no_id.keys())}) VALUES ({", ".join([", ".join("%s" for i in range(len(values.keys())))])}) ON CONFLICT (\"{conflictRow}\") DO UPDATE SET {", ".join([f"\"{row}\"=EXCLUDED.\"{row}\"" for row in table.rows_no_id])};', [values[key] for key in values.keys()])
         self.connection.commit()
 
-class OrderSender():
-    def __init__(self, dbWorker: DBWorker, table_UserOrderGroups: Table):
+class ReportSender():
+    def __init__(self, dbWorker: DBWorker, table_UserReportGroups: Table):
         self.dbWorker = dbWorker
-        self.table_UserOrderGroups = table_UserOrderGroups
+        self.table_UserReportGroups = table_UserReportGroups
     
     def GetRecipients(self, telegram_id: int):
         recipients = []
 
-        orderGroups = self.dbWorker.SelectBy(self.table_UserOrderGroups, {"order_groups": None}, "telegram_id", str(telegram_id))
-        for orderGroup in orderGroups:
-            print(orderGroup)
-            splittedOrderGroup = orderGroup[0].split('_')
+        reportGroups = self.dbWorker.SelectBy(self.table_UserReportGroups, {"report_groups": None}, "telegram_id", str(telegram_id))
+        for reportGroup in reportGroups:
+            print(reportGroup)
+            splittedReportGroup = reportGroup[0].split('_')
 
-            if (splittedOrderGroup[1]=="sender"):
-                recipients += self.GetRecipientsByOrderGroup(f"{splittedOrderGroup[0]}_recipient")
+            if (splittedReportGroup[1]=="sender"):
+                recipients += self.GetRecipientsByReportGroup(f"{splittedReportGroup[0]}_recipient")
         
         return set(recipients)
     
-    def GetRecipientsByOrderGroup(self, orderGroup: str):
-        recipients = self.dbWorker.SelectBy(self.table_UserOrderGroups, {"telegram_id": None}, "order_groups", orderGroup)
+    def GetRecipientsByReportGroup(self, reportGroup: str):
+        recipients = self.dbWorker.SelectBy(self.table_UserReportGroups, {"telegram_id": None}, "report_groups", reportGroup)
         return ([recipient[0] for recipient in recipients])
 
 '''

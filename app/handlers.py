@@ -20,21 +20,21 @@ import app.keyboards as keyboards
 router = Router()
 
 dbWorker = DBWorker(DB_host, DB_port, DB_database, DB_user, DB_password)
-table_Users = Table("public.\"Users\"", ["id", "telegram_id", "first_name", "last_name", "orders"])
-table_Orders = Table("public.\"Orders\"", ["id", "telegram_id", "order_text", "is_approved"])
-table_UserOrderGroups = Table("public.\"UserOrderGroups\"", ["id", "telegram_id", "order_groups"])
-orderSender = OrderSender(dbWorker, table_UserOrderGroups)
+table_Users = Table("public.\"Users\"", ["id", "telegram_id", "first_name", "last_name", "reports"])
+table_Reports = Table("public.\"Reports\"", ["id", "telegram_id", "report_text", "is_approved"])
+table_UserReportGroups = Table("public.\"UserReportGroups\"", ["id", "telegram_id", "report_groups"])
+reportSender = ReportSender(dbWorker, table_UserReportGroups)
 
 class MyStates(StatesGroup):
-    waiting_for_order = State()
+    waiting_for_report = State()
 
 @router.message(CommandStart())
 async def commandStart(message: Message, state: FSMContext):
-    orderGroups = dbWorker.SelectOneBy(table_UserOrderGroups, table_UserOrderGroups.rows_no_id, "telegram_id", str(message.from_user.id))
+    reportGroups = dbWorker.SelectOneBy(table_UserReportGroups, table_UserReportGroups.rows_no_id, "telegram_id", str(message.from_user.id))
 
-    if (orderGroups == None):
-        dbWorker.Insert(table_OrderGroup, {"telegram_id": message.from_user.id, "order_groups": "common_recipient"})
-        orderGroups = (message.from_user.id, "common_recipient")
+    if (reportGroups == None):
+        dbWorker.Insert(table_ReportGroup, {"telegram_id": message.from_user.id, "report_groups": "common_recipient"})
+        reportGroups = (message.from_user.id, "common_recipient")
 
     await message.answer(f"Здравствуйте, {message.from_user.first_name} {message.from_user.last_name}", reply_markup=keyboards.main)
 
@@ -43,17 +43,17 @@ async def somedef(message: Message, state: FSMContext):
     #user = User(message.from_user.id, message.from_user.first_name, message.from_user.last_name, True)
     #dbWorker.InsertOnConflict(table_Users, user.ToDict(), "telegram_id")
     await message.answer("Введите отчёт")
-    await state.set_state(MyStates.waiting_for_order)     
+    await state.set_state(MyStates.waiting_for_report)     
 
 
-@router.message(MyStates.waiting_for_order)
+@router.message(MyStates.waiting_for_report)
 async def get_text(message: Message, state: FSMContext):
     try:
-        dbWorker.Insert(table_Orders, {"telegram_id": message.from_user.id, "order": message.text, "is_approved": None})
-        order = dbWorker.SelectLastByOrderBy(table_Orders, table_Orders.rows, "telegram_id", str(message.from_user.id), "id")
-        dbWorker.Insert(table_Users, {"telegram_id": message.from_user.id, "first_name": message.from_user.first_name, "last_name": message.from_user.last_name, "orders": order[0]})
+        dbWorker.Insert(table_Reports, {"telegram_id": message.from_user.id, "report": message.text, "is_approved": None})
+        report = dbWorker.SelectLastByReportBy(table_Reports, table_Reports.rows, "telegram_id", str(message.from_user.id), "id")
+        dbWorker.Insert(table_Users, {"telegram_id": message.from_user.id, "first_name": message.from_user.first_name, "last_name": message.from_user.last_name, "reports": report[0]})
 
-        recipients = orderSender.GetRecipients(message.from_user.id)
+        recipients = reportSender.GetRecipients(message.from_user.id)
         
         for recipient in recipients:
             await message.bot.send_message(recipient, f"Отчёт от: {message.from_user.first_name} {message.from_user.last_name}\n{message.text}")
