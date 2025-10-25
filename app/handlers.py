@@ -36,7 +36,7 @@ async def commandStart(message: Message, state: FSMContext):
         dbWorker.Insert(table_ReportGroup, {"telegram_id": message.from_user.id, "report_groups": "common_recipient"})
         reportGroups = (message.from_user.id, "common_recipient")
 
-    await message.answer(f"Здравствуйте, {message.from_user.first_name} {message.from_user.last_name}", reply_markup=keyboards.main)
+    await message.answer(f"Здравствуйте, {message.from_user.first_name} {message.from_user.last_name}!\nНажмите '/send', чтобы начать отправку отчёта\nНажмите '/start', чтобы перезапустить бота", reply_markup=keyboards.main)
 
 @router.message(Command("send"))
 async def somedef(message: Message, state: FSMContext):
